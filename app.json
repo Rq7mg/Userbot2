@@ -1,13 +1,17 @@
 {
-  "name": "userbot-app",
-  "description": "Multi-user userbot with tagall commands",
-  "buildpacks": [
-    {"url": "heroku/python"}
-  ],
+  "name": "userbot",
+  "description": "Telegram Userbot",
+  "repository": "https://github.com/YourUsername/YourRepo",
+  "stack": "heroku-20",
   "env": {
-    "API_ID": {"description": "Your Telegram API ID", "required": true},
-    "API_HASH": {"description": "Your Telegram API Hash", "required": true},
-    "BOT_TOKEN": {"description": "Bot token for login system", "required": true},
+    "BOT_TOKEN": {"description": "Telegram bot token", "required": true},
+    "API_ID": {"description": "Telegram API ID", "required": true},
+    "API_HASH": {"description": "Telegram API HASH", "required": true},
     "OWNER_ID": {"description": "Owner Telegram ID", "required": true}
-  }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
 }
