@@ -1,7 +1,4 @@
-import os
-import json
-import asyncio
-import random
+import os, json, asyncio, random
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError
@@ -9,7 +6,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 # ---------------- ENV ----------------
-BOT_TOKEN = os.environ["BOT_TOKEN"]  # Sadece login için
+BOT_TOKEN = os.environ["BOT_TOKEN"]
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 OWNER_ID = int(os.environ["OWNER_ID"])
@@ -17,9 +14,7 @@ OWNER_ID = int(os.environ["OWNER_ID"])
 # ---------------- GLOBAL ----------------
 LOGIN_STATE = {}   # user_id: step
 TEMP_CLIENT = {}   # user_id: client + phone
-STOP_FLAGS = {}    # user_id: durdurma flag
-SESSIONS_FILE = "sessions.json"
-AUTHORIZED_FILE = "authorized.json"
+STOP_FLAGS = {}    # user_id: stop durumu
 
 # ---------------- JSON UTILS ----------------
 def load_json(name, default):
@@ -35,40 +30,38 @@ def save_json(name, data):
 
 # ---------------- AUTH ----------------
 def is_premium(uid):
-    data = load_json(AUTHORIZED_FILE, {"users": []})
+    data = load_json("authorized.json", {"users": []})
     return uid == OWNER_ID or uid in data["users"]
 
+# ---------------- COMMANDS ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not is_premium(uid):
+        await update.message.reply_text("⚠️ Premium değilsiniz.")
+    else:
         await update.message.reply_text(
-            "⚠️ Premium değilsiniz.\nOwner ile iletişime geçin."
+            "✅ Premium aktif.\n.login → Hesap bağla\n.logout → Hesap sil\n.gn / .ig / .t / .stop / .pre"
         )
-        return
-    await update.message.reply_text(
-        "✅ Premium aktif.\n.login → Hesap bağla\n.logout → Hesap sil\n.gn .ig .t → Etiketleme\n.stop → Durdur"
-    )
 
-# ---------------- OWNER /PRE ----------------
 async def pre(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid != OWNER_ID:
-        await update.message.reply_text("⛔ Bu komutu kullanamazsınız.")
+        await update.message.reply_text("⛔ Bu komutu kullanamazsın.")
         return
     if not context.args:
-        await update.message.reply_text("❌ Kullanım: /pre USER_ID")
+        await update.message.reply_text("❌ Kullanım: .pre USER_ID")
         return
     try:
         target_id = int(context.args[0])
     except ValueError:
         await update.message.reply_text("❌ Geçersiz ID")
         return
-    data = load_json(AUTHORIZED_FILE, {"users": []})
+    data = load_json("authorized.json", {"users": []})
     if target_id in data["users"]:
-        await update.message.reply_text("ℹ️ Kullanıcı zaten premium.")
+        await update.message.reply_text("ℹ️ Bu kullanıcı zaten premium.")
         return
     data["users"].append(target_id)
-    save_json(AUTHORIZED_FILE, data)
+    save_json("authorized.json", data)
     await update.message.reply_text(f"✅ {target_id} premium yapıldı.")
 
 # ---------------- LOGIN ----------------
@@ -96,15 +89,14 @@ async def handle_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = TEMP_CLIENT[uid]
         asyncio.create_task(async_login_password(update, uid, data, text))
 
+# ---------------- ASYNC LOGIN ----------------
 async def async_login_phone(update, uid, client, phone):
     try:
         await client.connect()
         await client.send_code_request(phone)
         TEMP_CLIENT[uid] = {"client": client, "phone": phone}
         LOGIN_STATE[uid] = "code"
-        await update.message.reply_text(
-            "📩 Telegram kodunu girin (rakamları boşlukla ayırın 1 2 3 4 gibi)"
-        )
+        await update.message.reply_text("📩 Telegram kodunu girin.")
     except Exception as e:
         await update.message.reply_text(f"❌ Hata: {e}")
 
@@ -130,23 +122,24 @@ async def async_login_password(update, uid, data, password):
         await update.message.reply_text(f"❌ Hata: {e}")
 
 def save_session(uid, client):
-    sessions = load_json(SESSIONS_FILE, {})
+    sessions = load_json("sessions.json", {})
     sessions[str(uid)] = client.session.save()
-    save_json(SESSIONS_FILE, sessions)
+    save_json("sessions.json", sessions)
 
 def cleanup(uid):
     LOGIN_STATE.pop(uid, None)
     TEMP_CLIENT.pop(uid, None)
 
+# ---------------- USERBOT ----------------
 def get_client(uid):
-    sessions = load_json(SESSIONS_FILE, {})
+    sessions = load_json("sessions.json", {})
     if str(uid) not in sessions:
         return None
     return TelegramClient(StringSession(sessions[str(uid)]), API_ID, API_HASH)
 
 # ---------------- ETIKETLEME ----------------
-GOOD_MORNING_MESSAGES = ["Günaydın!"]
-GOOD_NIGHT_MESSAGES = ["İyi geceler!"]
+GOOD_MORNING_MESSAGES = ["Günaydın 🌞"]
+GOOD_NIGHT_MESSAGES = ["İyi geceler 🌙"]
 
 async def tag_all(uid, chat_id, text=None, type_msg=None):
     STOP_FLAGS[uid] = False
@@ -159,7 +152,7 @@ async def tag_all(uid, chat_id, text=None, type_msg=None):
         for u in participants:
             if STOP_FLAGS.get(uid):
                 break
-            mention = f"[{u.first_name}](tg://user?id={u.id})"
+            mention = f"@{u.username}" if u.username else f"[{u.first_name}](tg://user?id={u.id})"
             if type_msg == "gn":
                 msg = random.choice(GOOD_MORNING_MESSAGES) + " " + mention
             elif type_msg == "ig":
@@ -171,9 +164,9 @@ async def tag_all(uid, chat_id, text=None, type_msg=None):
             await client.send_message(chat_id, msg, parse_mode="md")
             await asyncio.sleep(6)
     except Exception as e:
-        print(f"Etiketleme hatası: {e}")
+        print(f"Tag error: {e}")
 
-# ---------------- KOMUTLAR ----------------
+# ---------------- COMMANDS ----------------
 async def gn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     chat_id = update.effective_chat.id
@@ -191,7 +184,7 @@ async def t(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if msg:
         asyncio.create_task(tag_all(uid, chat_id, text=msg, type_msg="t"))
     else:
-        await update.message.reply_text("❌ .t mesaj yazın")
+        await update.message.reply_text("❌ .t mesaj")
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -200,9 +193,9 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    sessions = load_json(SESSIONS_FILE, {})
+    sessions = load_json("sessions.json", {})
     sessions.pop(str(uid), None)
-    save_json(SESSIONS_FILE, sessions)
+    save_json("sessions.json", sessions)
     await update.message.reply_text("🚪 Hesap silindi")
 
 # ---------------- MAIN ----------------
