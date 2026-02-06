@@ -2,7 +2,7 @@
   "name": "userbot",
   "description": "Telegram Userbot",
   "repository": "https://github.com/YourUsername/YourRepo",
-  "stack": "heroku-20",
+  "stack": "heroku-22",
   "env": {
     "BOT_TOKEN": {"description": "Telegram bot token", "required": true},
     "API_ID": {"description": "Telegram API ID", "required": true},
