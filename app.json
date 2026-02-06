@@ -1,0 +1,13 @@
+{
+  "name": "userbot-app",
+  "description": "Multi-user userbot with tagall commands",
+  "buildpacks": [
+    {"url": "heroku/python"}
+  ],
+  "env": {
+    "API_ID": {"description": "Your Telegram API ID", "required": true},
+    "API_HASH": {"description": "Your Telegram API Hash", "required": true},
+    "BOT_TOKEN": {"description": "Bot token for login system", "required": true},
+    "OWNER_ID": {"description": "Owner Telegram ID", "required": true}
+  }
+}
